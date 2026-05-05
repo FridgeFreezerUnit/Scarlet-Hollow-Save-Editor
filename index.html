@@ -1205,6 +1205,52 @@ function findStoreString(data, varName) {
       const vlen = data[valStart + 1];
       const vstr = new TextDecoder().decode(data.subarray(valStart + 2, valStart + 2 + vlen));
       return { start: valStart, end: valStart + 2 + vlen, value: vstr };
+    } else if (vop === 0x6a || vop === 0x68) { // LONG_BINGET / BINGET memo reference
+      const memoIdx = (vop === 0x6a)
+        ? new DataView(data.buffer, data.byteOffset + valStart + 1, 4).getUint32(0, true)
+        : data[valStart + 1];
+      const resolved = resolveStringMemoLocation(data, memoIdx);
+      if (resolved) return resolved;
+    }
+  }
+  return null;
+}
+
+/**
+ * Scan the pickle for a string that was memoized at targetMemoIdx via BINPUT/LONG_BINPUT.
+ * Returns {start, end, value} of the string opcode+bytes (not including the BINPUT).
+ */
+function resolveStringMemoLocation(data, targetMemoIdx) {
+  const putBuf = new Uint8Array(4);
+  new DataView(putBuf.buffer).setUint32(0, targetMemoIdx, true);
+  for (let i = 0; i < data.length - 2; i++) {
+    let strEnd;
+    if (data[i] === 0x58) {
+      if (i + 5 > data.length) continue;
+      const len = new DataView(data.buffer, data.byteOffset + i + 1, 4).getUint32(0, true);
+      if (len > 100000 || i + 5 + len > data.length) continue;
+      strEnd = i + 5 + len;
+    } else if (data[i] === 0x8c) {
+      const len = data[i + 1];
+      strEnd = i + 2 + len;
+      if (strEnd > data.length) continue;
+    } else {
+      continue;
+    }
+    if (strEnd >= data.length) continue;
+    const mop = data[strEnd];
+    let match = false;
+    if (mop === 0x72 && strEnd + 5 <= data.length) {
+      match = data[strEnd+1]===putBuf[0] && data[strEnd+2]===putBuf[1] &&
+              data[strEnd+3]===putBuf[2] && data[strEnd+4]===putBuf[3];
+    } else if (mop === 0x71 && targetMemoIdx < 256 && strEnd + 2 <= data.length) {
+      match = data[strEnd+1] === targetMemoIdx;
+    }
+    if (match) {
+      const val = data[i] === 0x58
+        ? new TextDecoder().decode(data.subarray(i + 5, strEnd))
+        : new TextDecoder().decode(data.subarray(i + 2, strEnd));
+      return { start: i, end: strEnd, value: val };
     }
   }
   return null;
