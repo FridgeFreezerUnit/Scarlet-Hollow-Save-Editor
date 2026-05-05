@@ -918,9 +918,9 @@
         <p style="margin-bottom: 0.5rem;"><strong>⚠️ Trait Availability:</strong></p>
         Only traits that exist in your save file are shown. If you don't see all 7 traits, it means:
         <ul style="margin: 0.5rem 0 0 1.5rem; line-height: 1.8;">
-          <li>The save is from before trait selection in Episode 1 (traits aren't initialized yet)</li>
-          <li>The game hasn't added that trait variable to this specific save file</li>
-          <li>You're using a very old save from an earlier game version</li>
+          <li>The save is from very early in Episode 1, before the trait selection scene</li>
+          <li>The game hasn't written that trait variable to this specific save file yet</li>
+          <li>You're using a save from an older game version</li>
         </ul>
         <p style="margin-top: 0.5rem;"><strong>📝 Note:</strong> Missing traits can't be edited until they appear in your save. The save editor can modify existing traits but can't create new ones from scratch (RenPy saves only store variables that the game has initialized).</p>
         <p style="margin-top: 0.5rem;"><strong>Disabling Traits:</strong> When you disable a trait, all related game flags (like <code>mystical_intro_gretchen</code>) are automatically reset to prevent inconsistencies in your playthrough.</p>
@@ -1181,10 +1181,20 @@ function findStoreString(data, varName) {
   new DataView(lenBytes.buffer).setUint32(0, nameLen, true);
 
   outer: for (let i = 0; i <= data.length - nameLen - 10; i++) {
-    if (data[i] !== 0x58) continue;
-    for (let j = 0; j < 4; j++) if (data[i+1+j] !== lenBytes[j]) continue outer;
-    for (let j = 0; j < nameLen; j++) if (data[i+5+j] !== nameBytes[j]) continue outer;
-    const afterKey = i + 5 + nameLen;
+    let afterKey;
+    if (data[i] === 0x58) {
+      // BINUNICODE: 4-byte length
+      for (let j = 0; j < 4; j++) if (data[i+1+j] !== lenBytes[j]) continue outer;
+      for (let j = 0; j < nameLen; j++) if (data[i+5+j] !== nameBytes[j]) continue outer;
+      afterKey = i + 5 + nameLen;
+    } else if (data[i] === 0x8c) {
+      // SHORT_BINUNICODE: 1-byte length
+      if (data[i+1] !== nameLen) continue;
+      for (let j = 0; j < nameLen; j++) if (data[i+2+j] !== nameBytes[j]) continue outer;
+      afterKey = i + 2 + nameLen;
+    } else {
+      continue;
+    }
     if (data[afterKey] !== 0x72) continue; // LONG_BINPUT
     const valStart = afterKey + 5;
     if (valStart >= data.length) continue;
@@ -1917,7 +1927,7 @@ async function loadSave(file) {
       const originalList = originallyEnabled.join(', ');
       infoHtml += `<div class="alert alert-info" style="margin-top: 0.5rem;">📋 <strong>Original traits in save:</strong> ${originalList} <button onclick="resetToOriginal()" class="btn" style="padding: 0.25rem 0.75rem; margin-left: 0.5rem; font-size: 11px;">Reset to Original</button></div>`;
     } else {
-      infoHtml += '<div class="alert alert-info" style="margin-top: 0.5rem;">📋 <strong>Original save had no traits enabled</strong> (save may be from before trait selection)</div>';
+      infoHtml += '<div class="alert alert-info" style="margin-top: 0.5rem;">📋 <strong>Original save had no traits enabled</strong> (save may be from very early in Episode 1, before the trait selection scene)</div>';
     }
     
     traitInfo.innerHTML = infoHtml;
