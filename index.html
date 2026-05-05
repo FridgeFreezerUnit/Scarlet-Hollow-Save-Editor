@@ -915,13 +915,8 @@
       </div>
       
       <div class="note" style="background: rgba(90, 128, 48, 0.1); border: 1px solid rgba(90, 128, 48, 0.2);">
-        <p style="margin-bottom: 0.5rem;"><strong>⚠️ Trait Availability:</strong></p>
-        Only traits that exist in your save file are shown. If you don't see all 7 traits, it means:
-        <ul style="margin: 0.5rem 0 0 1.5rem; line-height: 1.8;">
-          <li>The save was made before reaching the trait selection screen (e.g. an autosave from the very start of Episode 1)</li>
-          <li>You're using a save from a very old game version</li>
-        </ul>
-        <p style="margin-top: 0.5rem;"><strong>📝 Note:</strong> Missing traits can't be edited until they appear in your save. The save editor can modify existing traits but can't create new ones from scratch (RenPy saves only store variables that the game has initialized).</p>
+        <p style="margin-bottom: 0.5rem;"><strong>📝 Traits:</strong></p>
+        All 7 traits are always present in every save file as boolean variables. The editor shows all of them and lets you toggle any on or off.
         <p style="margin-top: 0.5rem;"><strong>Disabling Traits:</strong> When you disable a trait, all related game flags (like <code>mystical_intro_gretchen</code>) are automatically reset to prevent inconsistencies in your playthrough.</p>
       </div>
 
@@ -1930,7 +1925,7 @@ async function loadSave(file) {
       const originalList = originallyEnabled.join(', ');
       infoHtml += `<div class="alert alert-info" style="margin-top: 0.5rem;">📋 <strong>Original traits in save:</strong> ${originalList} <button onclick="resetToOriginal()" class="btn" style="padding: 0.25rem 0.75rem; margin-left: 0.5rem; font-size: 11px;">Reset to Original</button></div>`;
     } else {
-      infoHtml += '<div class="alert alert-info" style="margin-top: 0.5rem;">📋 <strong>Original save had no traits enabled</strong> (save may be from before trait selection)</div>';
+      infoHtml += '<div class="alert alert-info" style="margin-top: 0.5rem;">📋 <strong>No traits were active in this save.</strong> All 7 traits are available to enable.</div>';
     }
     
     traitInfo.innerHTML = infoHtml;
