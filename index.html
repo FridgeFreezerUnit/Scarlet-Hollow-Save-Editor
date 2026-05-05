@@ -1,10 +1,9 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="google-site-verification" content="MJ4IVeq4GVdTKblBOaB-4mgtWay_DYnlvnTrp91SkDk" />
-<title>Scarlet Hollow Save Editor</title>
+<title>Scarlett Hollow — Enhanced Save Editor</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   
@@ -687,7 +686,87 @@
     font-size: 12px;
   }
 
+  /* Relationship per-character action buttons */
+  .rel-card-actions {
+    display: flex;
+    gap: 0.25rem;
+    align-items: center;
+    flex-shrink: 0;
+    margin-left: auto;
+  }
+
+  .rel-action-btn {
+    background: rgba(58, 90, 42, 0.15);
+    border: 1px solid #2e3828;
+    color: #6a7a58;
+    border-radius: 4px;
+    padding: 0.2rem 0.4rem;
+    font-size: 11px;
+    cursor: pointer;
+    line-height: 1;
+    transition: all 0.15s;
+    font-family: inherit;
+  }
+
+  .rel-action-btn:hover {
+    background: rgba(58, 90, 42, 0.35);
+    border-color: #5a8030;
+    color: #a0c070;
+  }
+
+  .rel-preset-select {
+    background: #12150e;
+    border: 1px solid #2e3828;
+    color: #6a7a58;
+    border-radius: 4px;
+    padding: 0.15rem 0.25rem;
+    font-size: 11px;
+    cursor: pointer;
+    font-family: inherit;
+    max-width: 80px;
+  }
+
+  .rel-preset-select:hover {
+    border-color: #5a8030;
+    color: #8a9a78;
+  }
+
+  .rel-preset-select option {
+    background: #12150e;
+    color: #c8d0b0;
+  }
+
+  /* Flag edit mode */
+  .rel-flag-edit-input {
+    background: #12150e;
+    border: 1px solid #3a5a2a;
+    color: #e8dfc0;
+    border-radius: 4px;
+    padding: 0.2rem 0.4rem;
+    font-size: 11px;
+    text-align: center;
+    font-family: inherit;
+    margin-left: auto;
+  }
+
+  .rel-flag-edit-input[type=number] {
+    width: 64px;
+  }
+
+  .rel-flag-edit-input:focus {
+    outline: none;
+    border-color: #c08030;
+    box-shadow: 0 0 4px rgba(192, 128, 48, 0.3);
+  }
+
+  .rel-flag-section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
   /* Name editor inline */
+
 
   .name-edit-wrap {
     display: flex;
@@ -850,9 +929,17 @@
         <div class="rel-no-data">Load a save file to view relationships.</div>
       </div>
       <div class="rel-flag-section" id="rel-flags-section" style="display:none;">
-        <div class="section-title">Romance &amp; Trust Flags</div>
+        <div class="rel-flag-section-header">
+          <div class="section-title" style="margin-bottom:0;">Romance &amp; Trust Flags</div>
+          <button class="rel-action-btn" id="flag-edit-btn" onclick="toggleFlagEdit()" style="font-size:12px; padding:0.3rem 0.6rem;" title="These flags control romance and story branches. Only edit if you know what each flag does.">✏️ Edit flags</button>
+        </div>
+        <div id="flag-edit-warning" style="display:none; margin-top:0.5rem; padding:0.5rem 0.75rem; background:rgba(180,100,20,0.15); border:1px solid rgba(180,100,20,0.4); border-radius:6px; font-size:11px; color:#c09050;">
+          ⚠️ <strong>Advanced:</strong> These flags directly gate romance routes, story branches, and ending conditions. Only change values you understand — setting wrong combinations can break quests or create impossible saves.
+        </div>
         <div class="rel-flag-grid" id="rel-flag-grid"></div>
       </div>
+      <!-- Hidden file input shared for per-character relationship import -->
+      <input type="file" id="rel-import-input" accept=".json" style="display:none" onchange="handleRelImport(this)">
     </div>
 
     <div class="tab-content" id="tab-advanced">
@@ -1052,6 +1139,78 @@ const REL_FLAGS = [
   { key: 'store.sybil_distrust',                          label: 'Sybil: Distrust' },
   { key: 'store.romance',                                 label: 'Global romance flag' },
 ];
+
+// ── Relationship presets ──────────────────────────────────────────────────────
+// Preset values derived from real save file analysis across 126 saves.
+// Labels reflect each character's wiki-described preferences and personality.
+// Global presets apply to every character; char-specific presets are listed first.
+const REL_PRESETS_GLOBAL = [
+  { id: 'clean', label: '🧹 Clean slate', dims: { agreeable:0, adversarial:0, open:0, closed:0, bold:0, passive:0, reliable:0, unreliable:0, insightful:0, dull:0 } },
+];
+
+const REL_PRESETS_CHAR = {
+  // Stella's only stated preference is someone "being supportive."
+  // High agreeable + reliable are the key dims for her romance route lock in Ch 4.
+  stella: [
+    { id: 'stella_best',   label: '⭐ Supportive & reliable',  dims: { agreeable:68, adversarial:23, open:48, closed:27, bold:36, passive:13, reliable:55, unreliable:10, insightful:27, dull:1  } },
+    { id: 'stella_mid',    label: '📅 Mixed impressions',      dims: { agreeable:47, adversarial:37, open:30, closed:27, bold:27, passive:12, reliable:35, unreliable:9,  insightful:29, dull:3  } },
+    { id: 'stella_rival',  label: '⚔️ Adversarial',            dims: { agreeable:13, adversarial:29, open:13, closed:42, bold:16, passive:18, reliable:12, unreliable:18, insightful:5,  dull:2  } },
+  ],
+  // Tabitha values openness, agreeableness, AND someone willing to push back at times.
+  // The wiki explicitly says "ability to push back at times" shapes her relationship.
+  // The push-back preset has both high agreeable (64) AND adversarial (53) — she responds to honest challenge, not pure opposition.
+  tabitha: [
+    { id: 'tabitha_best',     label: '🌿 Open & welcoming',  dims: { agreeable:78, adversarial:37, open:77, closed:19, bold:10, passive:13, reliable:32, unreliable:5,  insightful:12, dull:5 } },
+    { id: 'tabitha_open',     label: '💬 Honest & close',    dims: { agreeable:64, adversarial:16, open:65, closed:19, bold:8,  passive:14, reliable:31, unreliable:4,  insightful:11, dull:0 } },
+    { id: 'tabitha_pushback', label: '🗣️ Push-back & open',  dims: { agreeable:64, adversarial:53, open:69, closed:32, bold:26, passive:17, reliable:29, unreliable:17, insightful:7,  dull:9 } },
+  ],
+  // Oscar prefers the Book Smart trait. Insightful is his strongest positive dim in best runs.
+  // Keen Eye and Book Smart in Ch 2–3 both help his relationship and his daughter's view of you.
+  oscar: [
+    { id: 'oscar_best',  label: '📖 Sharp & inquisitive',  dims: { agreeable:4, adversarial:0, open:13, closed:2, bold:9, passive:2, reliable:6, unreliable:1, insightful:12, dull:0 } },
+    { id: 'oscar_mid',   label: '📅 Early scholarly bond', dims: { agreeable:3, adversarial:0, open:8,  closed:2, bold:5, passive:1, reliable:3, unreliable:1, insightful:7,  dull:0 } },
+  ],
+  // Kaneeka prefers Powerful Build but can be romanced without it.
+  // Her best saves show both high agreeable AND adversarial — she respects someone who challenges her.
+  kaneeka: [
+    { id: 'kaneeka_best',  label: '🔬 Challenging & driven', dims: { agreeable:64, adversarial:50, open:63, closed:31, bold:33, passive:9,  reliable:53, unreliable:27, insightful:29, dull:17 } },
+    { id: 'kaneeka_mid',   label: '📅 Balanced progress',    dims: { agreeable:34, adversarial:26, open:34, closed:16, bold:21, passive:3,  reliable:28, unreliable:10, insightful:19, dull:7  } },
+    { id: 'kaneeka_warm',  label: '💕 Warm & dependable',    dims: { agreeable:45, adversarial:40, open:47, closed:28, bold:28, passive:5,  reliable:38, unreliable:15, insightful:26, dull:8  } },
+  ],
+  // Reese's only stated preference is someone being "kind."
+  // High agreeable is the dominant positive dim in all his good-relationship saves.
+  reese: [
+    { id: 'reese_best',     label: '🎨 Kind & agreeable',  dims: { agreeable:11, adversarial:5, open:6, closed:0, bold:3, passive:2, reliable:1, unreliable:0, insightful:0, dull:0 } },
+    { id: 'reese_balanced', label: '⚖️ Mixed impressions', dims: { agreeable:8,  adversarial:3, open:6, closed:5, bold:3, passive:0, reliable:3, unreliable:0, insightful:1, dull:0 } },
+  ],
+  // Wayne is a hidden romanceable unlocked by flirting in Ch 3–4.
+  // His relationship dict is all zeros across available saves (the arc unlocks late).
+  wayne: [
+    { id: 'wayne_clean', label: '🔧 Fresh start (late unlock)', dims: { agreeable:0, adversarial:0, open:0, closed:0, bold:0, passive:0, reliable:0, unreliable:0, insightful:0, dull:0 } },
+  ],
+  // Duke has limited screen time; agreeable and open are the key positive dims.
+  duke: [
+    { id: 'duke_best',  label: '🐾 Warm & reliable',  dims: { agreeable:8, adversarial:3, open:5, closed:1, bold:1, passive:1, reliable:2, unreliable:0, insightful:1, dull:0 } },
+    { id: 'duke_mid',   label: '📅 Early bond',        dims: { agreeable:6, adversarial:2, open:5, closed:1, bold:1, passive:1, reliable:0, unreliable:0, insightful:0, dull:0 } },
+  ],
+  // Avery's relationship is heavily shaped by whether they are INVITED and INCLUDED in events.
+  // Their romance route is not yet available as of Ch 4.
+  avery: [
+    { id: 'avery_best',     label: '⚖️ Included & trusted',  dims: { agreeable:15, adversarial:9, open:7, closed:11, bold:2, passive:1, reliable:8, unreliable:0, insightful:2, dull:0 } },
+    { id: 'avery_friendly', label: '🤝 Friendly & open',     dims: { agreeable:8,  adversarial:1, open:4, closed:1,  bold:2, passive:1, reliable:2, unreliable:0, insightful:2, dull:0 } },
+    { id: 'avery_guarded',  label: '🛡️ Guarded distance',    dims: { agreeable:8,  adversarial:9, open:4, closed:11, bold:2, passive:1, reliable:2, unreliable:0, insightful:2, dull:0 } },
+  ],
+  // Sybil is confirmed as a future romanceable but not yet available.
+  // Insightful is her highest positive dim across all saves — she notices observant people.
+  sybil: [
+    { id: 'sybil_best',       label: '🌙 Perceptive bond',    dims: { agreeable:1, adversarial:2, open:2, closed:0, bold:1, passive:1, reliable:1, unreliable:0, insightful:3, dull:0 } },
+    { id: 'sybil_mysterious', label: '🔮 Mysterious insight', dims: { agreeable:0, adversarial:2, open:1, closed:0, bold:1, passive:0, reliable:1, unreliable:0, insightful:3, dull:0 } },
+  ],
+};
+
+function getPresetsFor(charKey) {
+  return [...(REL_PRESETS_CHAR[charKey] || []), ...REL_PRESETS_GLOBAL];
+}
 
 /**
  * Parse a RevertableDict relationship variable from raw pickle bytes.
@@ -1394,13 +1553,25 @@ function renderRelationships() {
       `<span class="rel-badge ${b.cls}">${b.text}</span>`
     ).join('');
 
+    const presetsHtml = getPresetsFor(ch.key).map(p =>
+      `<option value="${p.id}">${p.label}</option>`
+    ).join('');
+
     cards.push(`
       <div class="rel-card">
         <div class="rel-card-header">
           <div class="rel-char-icon">${ch.icon}</div>
-          <div>
+          <div style="flex:1;">
             <div class="rel-char-name">${ch.label}</div>
             <div class="rel-char-status">${totalPoints} total points · ${dominants.slice(0,3).join(', ') || 'neutral'}</div>
+          </div>
+          <div class="rel-card-actions">
+            <button class="rel-action-btn" onclick="exportCharRelationship('${ch.key}')" title="Export relationship to JSON">↓ Export</button>
+            <button class="rel-action-btn" onclick="triggerImportChar('${ch.key}')" title="Import relationship from JSON">↑ Import</button>
+            <select class="rel-preset-select" onchange="applyCharPreset('${ch.key}', this.value); this.value=''" title="Apply a preset">
+              <option value="">⚙ Preset</option>
+              ${presetsHtml}
+            </select>
           </div>
         </div>
         ${barsHtml}
@@ -1421,11 +1592,24 @@ function renderRelationships() {
     const isBool = typeof val === 'boolean' || val === 1 || val === 0;
     const dotCls = isNum ? 'number' : (val === true || val === 1) ? 'true' : 'false';
     const displayVal = typeof val === 'boolean' ? (val ? 'Yes' : 'No') : val;
+
+    let inputHtml;
+    if (flagEditMode && isNum) {
+      inputHtml = `<input type="number" class="rel-flag-edit-input" min="0" max="9999" value="${val}"
+        onchange="updateFlagValue('${f.key}', this.value, 'int')">` ;
+    } else if (flagEditMode && isBool) {
+      const chk = (val === true || val === 1) ? 'checked' : '';
+      inputHtml = `<input type="checkbox" class="rel-flag-edit-input" style="width:16px;height:16px;cursor:pointer;accent-color:#a0c070;" ${chk}
+        onchange="updateFlagValue('${f.key}', this.checked, 'bool')">` ;
+    } else {
+      inputHtml = `<span class="rel-flag-val">${displayVal}</span>`;
+    }
+
     flagItems.push(`
       <div class="rel-flag-item">
         <div class="rel-flag-dot ${dotCls}"></div>
         <span>${f.label}</span>
-        <span class="rel-flag-val">${displayVal}</span>
+        ${inputHtml}
       </div>`);
   }
 
@@ -1449,12 +1633,156 @@ function toggleRelationshipEdit() {
   renderRelationships();
 }
 
+// ── Per-character relationship export / import / presets ──────────────────────
+
+function exportCharRelationship(charKey) {
+  if (!logData) return;
+  const ch = REL_CHARS.find(c => c.key === charKey);
+  if (!ch) return;
+  const baseDims = parseRelationshipDict(logData, 'store.' + charKey + '_relationship') || {};
+  const pending  = pendingRelationshipChanges[charKey] || {};
+  const dims = {};
+  for (const k of REL_DIMS) dims[k] = pending[k] !== undefined ? pending[k] : (baseDims[k] || 0);
+  const payload = JSON.stringify({ character: charKey, label: ch.label, dims }, null, 2);
+  const blob = new Blob([payload], { type: 'application/json' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url;
+  a.download = charKey + '_relationship.json';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+let _importTargetChar = null;
+
+function triggerImportChar(charKey) {
+  _importTargetChar = charKey;
+  const inp = document.getElementById('rel-import-input');
+  inp.value = '';
+  inp.click();
+}
+
+function handleRelImport(input) {
+  const file = input.files[0];
+  if (!file || !_importTargetChar) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const parsed = JSON.parse(e.target.result);
+      // Accept { dims: {...} } wrapper or a flat dim map
+      const dims = (parsed && typeof parsed.dims === 'object') ? parsed.dims : parsed;
+      if (!pendingRelationshipChanges[_importTargetChar]) pendingRelationshipChanges[_importTargetChar] = {};
+      for (const k of REL_DIMS) {
+        if (typeof dims[k] === 'number') pendingRelationshipChanges[_importTargetChar][k] = Math.max(0, Math.min(100, dims[k]));
+      }
+      _enableRelEditMode();
+      renderRelationships();
+      document.getElementById('status').textContent = `✅ Imported ${_importTargetChar} relationship`;
+      setTimeout(() => document.getElementById('status').textContent = '', 3000);
+    } catch (err) {
+      alert('Could not parse relationship JSON: ' + err.message);
+    }
+  };
+  reader.readAsText(file);
+}
+
+function applyCharPreset(charKey, presetId) {
+  if (!presetId) return;
+  const preset = getPresetsFor(charKey).find(p => p.id === presetId);
+  if (!preset) return;
+  if (!pendingRelationshipChanges[charKey]) pendingRelationshipChanges[charKey] = {};
+  for (const k of REL_DIMS) {
+    if (preset.dims[k] !== undefined) pendingRelationshipChanges[charKey][k] = preset.dims[k];
+  }
+  _enableRelEditMode();
+  renderRelationships();
+  document.getElementById('status').textContent = `✅ Applied "${preset.label}" to ${charKey}`;
+  setTimeout(() => document.getElementById('status').textContent = '', 3000);
+}
+
+function _enableRelEditMode() {
+  if (relationshipEditMode) return;
+  relationshipEditMode = true;
+  const toggle = document.getElementById('rel-edit-toggle');
+  if (toggle) toggle.checked = true;
+  const label = document.getElementById('rel-mode-label');
+  if (label) label.textContent = 'Edit mode.';
+}
+
+
 function updateRelationshipValue(charKey, dimName, value) {
   const numVal = Math.max(0, Math.min(100, parseInt(value) || 0));
   if (!pendingRelationshipChanges[charKey]) {
     pendingRelationshipChanges[charKey] = {};
   }
   pendingRelationshipChanges[charKey][dimName] = numVal;
+}
+
+/**
+ * Write a scalar store variable directly into logData bytes.
+ * Handles bool, BININT1, BININT2, BININT. Returns true on success.
+ */
+function writeStoreVar(varName, newValue) {
+  if (!logData) return false;
+  const enc = new TextEncoder();
+  const nameBytes = enc.encode(varName);
+  const nameLen = nameBytes.length;
+  const lenBytes = new Uint8Array(4);
+  new DataView(lenBytes.buffer).setUint32(0, nameLen, true);
+
+  for (let i = 0; i <= logData.length - nameLen - 8; i++) {
+    if (logData[i] !== 0x58) continue;
+    let match = true;
+    for (let j = 0; j < 4; j++) if (logData[i+1+j] !== lenBytes[j]) { match = false; break; }
+    if (!match) continue;
+    for (let j = 0; j < nameLen; j++) if (logData[i+5+j] !== nameBytes[j]) { match = false; break; }
+    if (!match) continue;
+
+    const a = i + 5 + nameLen;
+    if (logData[a] !== 0x72) continue; // require LONG_BINPUT
+    const vp = a + 5;
+    if (vp >= logData.length) continue;
+
+    const vop = logData[vp];
+    const dv = new DataView(logData.buffer, logData.byteOffset, logData.byteLength);
+    if (vop === 0x88 || vop === 0x89) {
+      logData[vp] = newValue ? 0x88 : 0x89;
+      return true;
+    }
+    if (vop === 0x4b && vp + 1 < logData.length) {
+      logData[vp + 1] = Math.max(0, Math.min(255, Math.round(Number(newValue))));
+      return true;
+    }
+    if (vop === 0x4d && vp + 2 < logData.length) {
+      dv.setUint16(vp + 1, Math.max(0, Math.min(65535, Math.round(Number(newValue)))), true);
+      return true;
+    }
+    if (vop === 0x4a && vp + 4 < logData.length) {
+      dv.setInt32(vp + 1, Math.round(Number(newValue)), true);
+      return true;
+    }
+  }
+  return false;
+}
+
+function toggleFlagEdit() {
+  flagEditMode = !flagEditMode;
+  const btn = document.getElementById('flag-edit-btn');
+  if (btn) btn.textContent = flagEditMode ? '👁️ View only' : '✏️ Edit flags';
+  const warn = document.getElementById('flag-edit-warning');
+  if (warn) warn.style.display = flagEditMode ? '' : 'none';
+  renderRelationships();
+}
+
+function updateFlagValue(flagKey, rawValue, type) {
+  let coerced;
+  if (type === 'bool') coerced = !!rawValue;
+  else coerced = Math.max(0, Math.min(9999, parseInt(rawValue) || 0));
+  const ok = writeStoreVar(flagKey, coerced);
+  if (!ok) {
+    document.getElementById('status').textContent = '⚠️ Could not write flag — not found in this save';
+    setTimeout(() => document.getElementById('status').textContent = '', 3000);
+  }
 }
 
 
@@ -1577,6 +1905,7 @@ let selectedTraitsPos = -1;
 let pendingNameChange = null; // { newName: string } — applied at download time
 let relationshipEditMode = false;
 let pendingRelationshipChanges = {}; // { charKey: { dimension: value, ... }, ... }
+let flagEditMode = false;
 
 // Utility functions
 function findBoolPositions(data, key) {
