@@ -1195,8 +1195,12 @@ function findStoreString(data, varName) {
     } else {
       continue;
     }
-    if (data[afterKey] !== 0x72) continue; // LONG_BINPUT
-    const valStart = afterKey + 5;
+    // Skip memo opcode if present (0x71 BINPUT +1byte, 0x72 LONG_BINPUT +4bytes, 0x94 MEMOIZE +0bytes)
+    let valStart;
+    if (data[afterKey] === 0x72) valStart = afterKey + 5;
+    else if (data[afterKey] === 0x71) valStart = afterKey + 2;
+    else if (data[afterKey] === 0x94) valStart = afterKey + 1;
+    else valStart = afterKey; // no memo
     if (valStart >= data.length) continue;
     const vop = data[valStart];
     if (vop === 0x58) {           // BINUNICODE (4-byte len)
@@ -1927,7 +1931,7 @@ async function loadSave(file) {
       const originalList = originallyEnabled.join(', ');
       infoHtml += `<div class="alert alert-info" style="margin-top: 0.5rem;">📋 <strong>Original traits in save:</strong> ${originalList} <button onclick="resetToOriginal()" class="btn" style="padding: 0.25rem 0.75rem; margin-left: 0.5rem; font-size: 11px;">Reset to Original</button></div>`;
     } else {
-      infoHtml += '<div class="alert alert-info" style="margin-top: 0.5rem;">📋 <strong>Original save had no traits enabled</strong> (save may be from very early in Episode 1, before the trait selection scene)</div>';
+      infoHtml += '<div class="alert alert-info" style="margin-top: 0.5rem;">📋 <strong>Original save had no traits enabled</strong> (save may be from before trait selection)</div>';
     }
     
     traitInfo.innerHTML = infoHtml;
