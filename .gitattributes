@@ -1,0 +1,17 @@
+# .gitattributes - Cross-platform line ending normalization
+
+# Auto normalize line endings for all text files
+* text=auto
+
+# Documentation - Unix line endings
+*.md eol=lf
+*.txt eol=lf
+*.markdown eol=lf
+
+# HTML/Web
+*.html eol=lf
+*.css eol=lf
+*.js eol=lf
+
+# Preserve exact line endings for specific files
+*.save binary
